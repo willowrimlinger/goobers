@@ -49,16 +49,16 @@ paths:
           description: Goober not found
   /fingerprints:
     get:
-      summary: get auth token if there was a recent fingerprint check in
+      summary: get url if there was a recent fingerprint check in
       responses:
         '200':
-          description: Auth token to add to url for the qr code
+          description: returns a url with an auth token for the qr code to use
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  token:
+                  url:
                     type: string
     post:
       summary: When a fingerprint is sent, store the id and the check in time.
