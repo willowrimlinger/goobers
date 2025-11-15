@@ -5,6 +5,11 @@
 #include <Arduino_GFX_Library.h>
 #include <Adafruit_FT6206.h>
 #include <Adafruit_CST8XX.h>
+#include <WiFi.h>
+#include <Fonts/FreeMono9pt7b.h>
+
+#include "config.h"
+#include "display.h"
 
 Arduino_XCA9554SWSPI *expander = new Arduino_XCA9554SWSPI(
     PCA_TFT_RESET, PCA_TFT_CS, PCA_TFT_SCK, PCA_TFT_MOSI,
@@ -101,6 +106,8 @@ void generateColorWheel(uint16_t *colorWheel) {
   }
 }
 
+char buf[100];
+
 
 void setup(void)
 {
@@ -122,15 +129,47 @@ void setup(void)
   Serial.println("Initialized!");
 
   gfx->fillScreen(BLACK);
+  gfx->setFont(&FreeMono9pt7b);
 
   expander->pinMode(PCA_TFT_BACKLIGHT, OUTPUT);
   expander->digitalWrite(PCA_TFT_BACKLIGHT, HIGH);
+
+  // Set WiFi to station mode and disconnect from an AP if it was previously connected
+  WiFi.mode(WIFI_STA);
+  WiFi.disconnect();
+  delay(100);
 
   colorWheel = (uint16_t *) ps_malloc(gfx->width() * gfx->height() * sizeof(uint16_t));
   if (colorWheel) {
     generateColorWheel(colorWheel);
     gfx->draw16bitRGBBitmap(0, 0, colorWheel, gfx->width(), gfx->height());
   }
+
+  int status = WL_IDLE_STATUS;
+
+  // attempt to connect to Wifi network:
+
+  while ( status != WL_CONNECTED) {
+    gfx->setTextColor(WHITE);
+    gfx->setCursor(0, 20);
+    DISPLAY_PRINTF("Connecting to WiFi network '%s'", WIFI_SSID);
+
+    status = WiFi.begin(WIFI_SSID, WIFI_PASS);
+
+    for (int i = 0; i < 10; i++) {
+      delay(1000);
+      DISPLAY_PRINTF(".");
+      status = WiFi.status();
+      if (status == WL_CONNECTED) {
+        DISPLAY_PRINTF("\n");
+        break;
+      }
+    }
+
+
+  }
+  IPAddress ip = WiFi.localIP();
+  DISPLAY_PRINTF("Connected! IP: %u.%u.%u.%u\n", ip[0], ip[1], ip[2], ip[3]);
 
   if (!focal_ctp.begin(0, &Wire, I2C_TOUCH_ADDR)) {
     // Try the CST826 Touch Screen
