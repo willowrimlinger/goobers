@@ -12,6 +12,14 @@ def get_goobers():
     goobers: list[Goober] = Goober.query.all()
     return {'goobers': [goober.name for goober in goobers]}
 
+@app.route('/goobers/<string:fingerprint>', methods=['GET'])
+def get_goober_by_fingerprint(fingerprint):
+    goober: Goober = Goober.query.filter_by(fingerprint=fingerprint).first()
+    if goober:
+        return {'name': goober.name, 'fingerprint': goober.fingerprint}
+    else:
+        return jsonify({'error': 'Goober not found'}), 404
+
 @app.route('/goobers', methods=['POST'])
 def create_goober():
     data = request.get_json()
