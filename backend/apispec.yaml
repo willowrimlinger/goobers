@@ -29,6 +29,52 @@ paths:
       responses:
         '201':
           description: Goober created successfully
+  /goobers/{fingerprint}:
+    get:
+      summary: Get a goober by fingerprint
+      parameters:
+        - in: path
+          name: fingerprint
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: A single goober
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Goober'
+        '404':
+          description: Goober not found
+  /fingerprints:
+    get:
+      summary: get auth token if there was a recent fingerprint check in
+      responses:
+        '200':
+          description: Auth token to add to url for the qr code
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+    post:
+      summary: When a fingerprint is sent, store the id and the check in time.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                fingerprint:
+                  type: string
+      responses:
+        '201': 
+          description: Fingerprint stored successfully
+  
 components:
   schemas:
     Goober:
