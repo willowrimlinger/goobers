@@ -47,7 +47,7 @@ paths:
                 $ref: '#/components/schemas/Goober'
         '404':
           description: Goober not found
-  /fingerprints:
+  /sessions:
     get:
       summary: get url if there was a recent fingerprint check in
       responses:
