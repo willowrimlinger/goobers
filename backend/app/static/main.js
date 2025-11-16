@@ -1,0 +1,1 @@
+var canvas = document.getElementById("pizarra-musculos")

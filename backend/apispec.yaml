@@ -1,0 +1,124 @@
+openapi: 3.0.0
+info:
+  version: 1.0.0
+  title: Goober API
+  description: API for storing goobers and shrine data
+servers:
+  - url: tbd
+paths:
+  /goobers:
+    get:
+      summary: Get all goobers
+      responses:
+        '200':
+          description: A list of goobers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Goober'
+    post:
+      summary: Create a new goober
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Goober'
+      responses:
+        '201':
+          description: Goober created successfully
+  /goobers/{fingerprint}:
+    get:
+      summary: Get a goober by fingerprint
+      parameters:
+        - in: path
+          name: fingerprint
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: A single goober
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Goober'
+        '404':
+          description: Goober not found
+  /sessions:
+    get:
+      summary: get url if there was a recent fingerprint check in, a new fingerprint will return the qr code for the goober, and an existing fingerprint will return the id of the connected goober.
+      responses:
+        '200':
+          description: returns a url with an auth token for the qr code to use
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url:
+                    type: string
+                  id:
+                    type: string
+    post:
+      summary: When a fingerprint is sent, store the id and the check in time.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                fingerprint:
+                  type: string
+      responses:
+        '201': 
+          description: Fingerprint stored successfully
+  
+components:
+  schemas:
+    Goober:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+        fingerprint:
+          type: string
+        last_seen:
+          type: string
+          format: date-time
+        cosmetics:
+          type: array
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+              id:
+                type: integer
+        history:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              description:
+                type: string
+        stats:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              value:
+                type: number
+      required:
+        - name
+        - fingerprint
