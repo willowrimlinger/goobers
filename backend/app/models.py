@@ -121,4 +121,3 @@ class GooberHistory(db.Model):
 
     def __repr__(self):
         return f'<GooberHistory {self.goober.name} - {self.event.name} at {self.timestamp}>'
-    
