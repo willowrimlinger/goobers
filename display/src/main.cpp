@@ -7,6 +7,7 @@
 #include <Adafruit_CST8XX.h>
 #include <WiFi.h>
 #include <Fonts/FreeMono9pt7b.h>
+#include <Fonts/FreeSansBoldOblique24pt7b.h>
 #include <WiFiClient.h>
 #include <ArduinoHttpClient.h>
 #include <ArduinoJson.h>
@@ -29,27 +30,8 @@ void printMem() {
   Serial.printf("Free PSRAM: %d\n", ESP.getFreePsram());
 }
 
-
-
-struct SpiRamAllocator {
-  void* allocate(size_t size) {
-    return ps_malloc(size);
-    printMem();
-  }
-
-  void deallocate(void* pointer) {
-    free(pointer);
-  }
-
-  void* reallocate(void* ptr, size_t new_size) {
-    return ps_realloc(ptr, new_size);
-  }
-};
-
-using SpiRamJsonDocument = BasicJsonDocument<SpiRamAllocator>;
-
 WiFiClient client;
-HttpClient http(client, "10.153.208.250", 5000);
+HttpClient http(client, BACKEND_HOST, BACKEND_PORT);
 
 Arduino_XCA9554SWSPI *expander = new Arduino_XCA9554SWSPI(
     PCA_TFT_RESET, PCA_TFT_CS, PCA_TFT_SCK, PCA_TFT_MOSI,
@@ -65,6 +47,7 @@ Arduino_ESP32RGBPanel *rgbpanel = new Arduino_ESP32RGBPanel(
 //    ,1, 30000000
     );
 
+GFXcanvas16 canvas(480, 480);
 Arduino_RGB_Display *gfx = new Arduino_RGB_Display(
 // 2.1" 480x480 round display
 //    480 /* width */, 480 /* height */, rgbpanel, 0 /* rotation */, true /* auto_flush */,
@@ -100,6 +83,10 @@ Arduino_RGB_Display *gfx = new Arduino_RGB_Display(
 // needs also the rgbpanel to have these pulse/sync values:
 //    1 /* hync_polarity */, 46 /* hsync_front_porch */, 2 /* hsync_pulse_width */, 44 /* hsync_back_porch */,
 //    1 /* vsync_polarity */, 50 /* vsync_front_porch */, 16 /* vsync_pulse_width */, 16 /* vsync_back_porch */
+
+void setDefaultFont() {
+  gfx->setFont(&FreeMono9pt7b);
+}
 
 uint16_t *colorWheel;
 
@@ -168,14 +155,15 @@ void setup(void)
   Serial.println("Initialized!");
 
   gfx->fillScreen(BLACK);
-  gfx->setFont(&FreeMono9pt7b);
+  setDefaultFont();
   gfx->setTextColor(WHITE);
   gfx->setCursor(0, 20);
-  // colorWheel = (uint16_t *) ps_malloc(gfx->width() * gfx->height() * sizeof(uint16_t));
-  // if (colorWheel) {
-  //   generateColorWheel(colorWheel);
-  //   gfx->draw16bitRGBBitmap(0, 0, colorWheel, gfx->width(), gfx->height());
-  // }
+  colorWheel = (uint16_t *) ps_malloc(gfx->width() * gfx->height() * sizeof(uint16_t));
+  if (colorWheel) {
+    generateColorWheel(colorWheel);
+    gfx->draw16bitRGBBitmap(0, 0, colorWheel, gfx->width(), gfx->height());
+  }
+  free(colorWheel);
   DISPLAY_PRINTF("Initializing Goober System...\n");
 
   expander->pinMode(PCA_TFT_BACKLIGHT, OUTPUT);
@@ -213,63 +201,6 @@ void setup(void)
   IPAddress ip = WiFi.localIP();
   DISPLAY_PRINTF("Connected! IP: %u.%u.%u.%u\n", ip[0], ip[1], ip[2], ip[3]);
 
-
-  DISPLAY_PRINTF("HTTP Sent... ");
-  http.get("/");
-  int statusCode = http.responseStatusCode();
-  long contentLength = http.contentLength();
-  DISPLAY_PRINTF("Response Received: %d, length %d\n", statusCode, contentLength);
-
-  char *response = (char *) ps_malloc(sizeof(char) * contentLength);
-  printMem();
-
-  // Get the raw and the decoded stream
-  DISPLAY_PRINTF("Skipping Headers: %d\n", http.skipResponseHeaders());
-  int remainingLength = contentLength;
-  int i = 0;
-  while(!http.endOfBodyReached()) {
-    if (http.available()) {
-      response[i] = http.read();
-      i++;
-      remainingLength--;
-    }
-  }
-  DISPLAY_PRINTF("Response Gathered! - Remaining: %d\n", remainingLength);
-  Serial.println(response);
-
-  // Parse response
-  cJSON *json = cJSON_Parse(response);
-  printMem();
-  if(json == NULL) {
-    DISPLAY_PRINTF("JSON Decode Failed\n");
-    return;
-  }
-  cJSON *key = json->child;
-  while (key) {
-    DISPLAY_PRINTF("%s ", key->string);
-    key = key->next;
-  }
-  DISPLAY_PRINTF("\n");
-
-
-  DISPLAY_PRINTF("JSON Deserialized, %d\n", http.endOfBodyReached());
-  uint32_t width = cJSON_GetObjectItem(json, "width")->valueint;
-  uint32_t height = cJSON_GetObjectItem(json, "height")->valueint;
-  char *bitmapB64Str = cJSON_GetObjectItem(json, "bitmap")->valuestring;
-  uint16_t *bitmap = (uint16_t *) ps_malloc(sizeof(uint16_t) * width * height);
-  printMem();
-  DISPLAY_PRINTF("Malloc'd... ");
-  unsigned int nBytes = decode_base64((const unsigned char *)bitmapB64Str, (unsigned char *)bitmap);
-  DISPLAY_PRINTF("Bitmap Parsed, %d bytes\n", nBytes);
-  char *maskB64Str = cJSON_GetObjectItem(json, "mask")->valuestring;
-  int maskLength = strlen(maskB64Str);
-  uint8_t *mask = (uint8_t *) ps_malloc(maskLength);
-  printMem();
-  DISPLAY_PRINTF("Malloc'd... ");
-  nBytes = decode_base64((const unsigned char *)maskB64Str, (unsigned char *)mask);
-  DISPLAY_PRINTF("Mask Parsed, %d bytes\n", nBytes);
-  drawRGBBitmap(gfx, 0, 0, bitmap, mask, width, height);
-
   if (!focal_ctp.begin(0, &Wire, I2C_TOUCH_ADDR)) {
     // Try the CST826 Touch Screen
     if (!cst_ctp.begin(&Wire, I2C_TOUCH_ADDR)) {
@@ -288,8 +219,143 @@ void setup(void)
   }
 }
 
+int lastStatusCode = -1;
 void loop()
 {
+  DISPLAY_DBGF("HTTP Sent... ");
+  http.get("/v1/sessions");
+  int statusCode = http.responseStatusCode();
+  long contentLength = http.contentLength();
+  DISPLAY_DBGF("Response Received: %d, length %d\n", statusCode, contentLength);
+
+  Serial.println("malloc response");
+  char *response = (char *) ps_malloc(sizeof(char) * contentLength);
+  printMem();
+
+  if (statusCode == 200 || statusCode == 201) {
+    if (lastStatusCode != statusCode) {
+      gfx->fillScreen(WHITE);
+      gfx->setTextColor(BLACK);
+      gfx->setTextSize(2);
+      gfx->setCursor(75, 240);
+      if (statusCode == 200) {
+        DISPLAY_PRINTF("Loading Goober");
+      } else if (statusCode == 201) {
+        DISPLAY_PRINTF("Loading QR Code");
+      }
+      gfx->setTextSize(1);
+    }
+
+    // Get the raw and the decoded stream
+    DISPLAY_DBGF("Skipping Headers: %d\n", http.skipResponseHeaders());
+    int remainingLength = contentLength;
+    int i = 0;
+    while(!http.endOfBodyReached()) {
+      if (http.available()) {
+        response[i] = http.read();
+        i++;
+        remainingLength--;
+      }
+    }
+    DISPLAY_DBGF("Response Gathered!\n");
+
+    // Parse response
+    Serial.println("cJSON Parse");
+    cJSON *json = cJSON_Parse(response);
+    printMem();
+    if(json == NULL) {
+      DISPLAY_DBGF("JSON Decode Failed\n");
+      return;
+    }
+    cJSON *key = json->child;
+    while (key) {
+      DISPLAY_DBGF("%s ", key->string);
+      key = key->next;
+    }
+    DISPLAY_DBGF("\n");
+
+
+    DISPLAY_DBGF("JSON Deserialized, %d\n", http.endOfBodyReached());
+    Serial.println("JSON Parsing");
+    uint32_t width = cJSON_GetObjectItem(json, "width")->valueint;
+    uint32_t height = cJSON_GetObjectItem(json, "height")->valueint;
+    char *bitmapB64Str = cJSON_GetObjectItem(json, "bitmap")->valuestring;
+    Serial.println("malloc bitmap");
+    uint16_t *bitmap = (uint16_t *) ps_malloc(sizeof(uint16_t) * width * height);
+    printMem();
+    DISPLAY_DBGF("Malloc'd... ");
+    unsigned int nBytes = decode_base64((const unsigned char *)bitmapB64Str, (unsigned char *)bitmap);
+    DISPLAY_DBGF("Bitmap Parsed, %d bytes\n", nBytes);
+    char *maskB64Str = cJSON_GetObjectItem(json, "mask")->valuestring;
+    int maskLength = strlen(maskB64Str);
+    Serial.println("malloc mask");
+    uint8_t *mask = (uint8_t *) ps_malloc(maskLength);
+    printMem();
+    DISPLAY_DBGF("Malloc'd... ");
+    nBytes = decode_base64((const unsigned char *)maskB64Str, (unsigned char *)mask);
+    DISPLAY_DBGF("Mask Parsed, %d bytes\n", nBytes);
+    if (lastStatusCode != statusCode) {
+      gfx->fillScreen(WHITE);
+    }
+    gfx->setCursor(0, 20);
+    if (statusCode == 200) {
+      cJSON *goober = cJSON_GetObjectItem(json, "goober");
+      DISPLAY_PRINTF("Name: %s\n", cJSON_GetObjectItem(goober, "name")->valuestring);
+      cJSON *stat = NULL;
+      cJSON_ArrayForEach(stat, cJSON_GetObjectItem(goober, "stats")) {
+        DISPLAY_PRINTF("%s: %.2f\n", cJSON_GetObjectItem(stat, "stat_name")->valuestring, cJSON_GetObjectItem(stat, "stat_value")->valuedouble);
+      }
+    }
+    drawRGBBitmap(gfx, 0, 0, bitmap, mask, width, height);
+    Serial.println("free bitmap");
+    free(bitmap);
+    Serial.println("free mask");
+    free(mask);
+    Serial.println("cJSON Delete");
+    cJSON_Delete(json);
+  } else {
+    // Get the raw and the decoded stream
+    DISPLAY_DBGF("Skipping Headers: %d\n", http.skipResponseHeaders());
+    int remainingLength = contentLength;
+    int i = 0;
+    while(!http.endOfBodyReached()) {
+      if (http.available()) {
+        response[i] = http.read();
+        i++;
+        remainingLength--;
+      }
+    }
+    DISPLAY_DBGF("Response Gathered!\n");
+    DISPLAY_DBGF("%s\n", response);
+    canvas.setFont(&FreeSansBoldOblique24pt7b);
+    canvas.setTextColor(BLACK);
+    canvas.setTextSize(2);
+    canvas.startWrite();
+    for (int y = 0; y < 480; y+=4) {
+      for (int x = 0; x < 480; x+=4) {
+        canvas.writeFillRect(x, y, 4, 4, random(0xFFFF));
+      }
+    }
+    canvas.endWrite();
+    canvas.setCursor(15, 85);
+    canvas.print("G");
+    canvas.setCursor(90, 160);
+    canvas.print("O");
+    canvas.setCursor(165, 235);
+    canvas.print("O");
+    canvas.setCursor(240, 310);
+    canvas.print("B");
+    canvas.setCursor(315, 385);
+    canvas.print("E");
+    canvas.setCursor(390, 460);
+    canvas.print("R");
+    drawRGBBitmap(gfx, 0, 0, (uint16_t *) canvas.getBuffer(), NULL, canvas.width(), canvas.height());
+  }
+
+  Serial.println("free response");
+  free(response);
+  printMem();
+
   if (touchOK) {
     if (isFocalTouch && focal_ctp.touched()) {
       TS_Point p = focal_ctp.getPoint(0);
@@ -310,4 +376,6 @@ void loop()
   if (! expander->digitalRead(PCA_BUTTON_UP)) {
     expander->digitalWrite(PCA_TFT_BACKLIGHT, HIGH);
   }
+
+  lastStatusCode = statusCode;
 }

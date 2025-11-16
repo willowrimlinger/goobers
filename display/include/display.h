@@ -7,7 +7,7 @@ if (gfx->getCursorY() > 460) { \
     gfx->setCursor(0, 20); \
 }
 
-
+#define DISPLAY_DBGF(format, args...) if(DEBUG_ENABLED){DISPLAY_PRINTF(format, ##args);}else{Serial.printf(format, ##args);}
 
 /**************************************************************************/
 /*!

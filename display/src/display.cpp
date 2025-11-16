@@ -7,7 +7,9 @@ void drawRGBBitmap(Arduino_RGB_Display *gfx, int16_t x, int16_t y, uint16_t *bit
   gfx->startWrite();
   for (int16_t j = 0; j < h; j++, y++) {
     for (int16_t i = 0; i < w; i++) {
-      if (i & 7)
+      if (mask == NULL)
+        b = 0xFF;
+      else if (i & 7)
         b <<= 1;
       else
         b = mask[j * bw + i / 8];
