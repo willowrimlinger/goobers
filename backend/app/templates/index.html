@@ -125,13 +125,16 @@
             console.log("sending goob")
             const dataUrl = canvas.toDataURL("image/png"); 
             const b64 = dataUrl.split(",")[1];
-            console.log("sending goob")
+            const queryParams = new URLSearchParams(window.location.search);
+            const access_token = queryParams.get("access_token");
+            console.log("sending goob");
             fetch("/v1/bubba-gum-shimp", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     name: document.getElementById("namey").value,
-                    image: b64
+                    image: b64,
+                    access_token: access_token,
                 }),
             }).then(() => {console.log("i just sent a goob")})
             return false;
