@@ -116,14 +116,14 @@ def create_event():
 
     return jsonify({'message': 'Event created successfully', 'event': {'name': new_event.name, 'description': new_event.description}}), 201
 
-@version_blueprint.route('/gimme-new-one', methods=['GET'])
+@version_blueprint.get('/gimme-new-one')
 def get_available_fingerprint():
     fingerprint: str = Fingerprint.get_available_fingerprints()
     if not fingerprint:
         return jsonify({'error': 'No available fingerprints'}), 404
     return str(fingerprint), 200
 
-@version_blueprint.route('/bubba-gum-shimp', methods=['GET'])
+@version_blueprint.get('/bubba-gum-shimp')
 def get_bubba_gum_shimp():
     return render_template('index.html')
 
@@ -165,5 +165,16 @@ def png_to_json(img):
     bitmap_bytes = bytes(bitmap)
     mask_bytes = bytes(mask)
     return jsonify({"bitmap": base64.b64encode(bitmap_bytes).decode("utf-8"), "mask": base64.b64encode(mask_bytes).decode("utf-8"), "width": img.width, "height": img.height})
+
+@version_blueprint.post('/bubba-gum-shimp')
+def get_bubba_gum_shimp():
+    data = request.get_json()
+    name: str = data.get('name')
+    imageb64: str = data.get('image')
+    access_token: str = data.get('access_token')
+
+    # from access token, get fingerprint sensor
+
+    goober = Goober(name=name, image=imageb64)
 
 app.register_blueprint(version_blueprint, url_prefix='/v1')

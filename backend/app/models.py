@@ -30,6 +30,7 @@ class Goober(db.Model):
     id: so.Mapped[int] = db.mapped_column(db.Integer, primary_key=True)
     name: so.Mapped[str] = db.mapped_column(Text)
     fingerprint_id: so.Mapped[int] = db.mapped_column(db.Integer, db.ForeignKey('fingerprints.id'))
+    image: so.Mapped[str] = db.mapped_column(Text)
 
     fingerprint: so.Mapped[Fingerprint] = db.relationship('Fingerprint', backref='goobers')
 
