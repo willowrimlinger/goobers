@@ -202,6 +202,8 @@ def post_bubba_gum_shimp():
     goober = Goober(name=name, image=imageb64, fingerprint_id=checkin.fingerprint.id)
     db.session.add(goober)
     db.session.delete(checkin)
+    new_checkin = CheckIn(fingerprint_id=checkin.fingerprint.id, timestamp=datetime.now())
+    db.session.add(new_checkin)
     db.session.commit()
 
     return 201
