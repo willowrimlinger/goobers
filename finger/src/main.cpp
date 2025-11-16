@@ -16,7 +16,6 @@
 
 #include <Arduino.h>
 #include <Adafruit_Fingerprint.h>
-#include <SoftwareSerial.h>
 #include <WiFi.h>
 #include <HTTPClient.h>
 
