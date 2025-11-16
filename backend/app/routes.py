@@ -174,4 +174,10 @@ def png_to_json(img):
     mask_bytes = bytes(mask)
     return jsonify({"bitmap": base64.b64encode(bitmap_bytes).decode("utf-8"), "mask": base64.b64encode(mask_bytes).decode("utf-8"), "width": img.width, "height": img.height})
 
+@version_blueprint.post('/bubba-gum-shimp')
+def get_bubba_gum_shimp():
+    data = request.get_json()
+    name: str = data.get('name')
+    imageb64: str = data.get('image')
+
 app.register_blueprint(version_blueprint, url_prefix='/v1')
