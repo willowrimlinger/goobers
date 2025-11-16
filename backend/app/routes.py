@@ -5,7 +5,9 @@ from app import db
 from datetime import datetime, timedelta
 import hashlib
 import json
-
+import base64
+from PIL import Image
+import qrcode
 
 @version_blueprint.route('/hello')
 def index():
@@ -64,7 +66,10 @@ def get_latest_session():
     goober = Goober.get_by_fingerprint(checkin.fingerprint)
     if (goober is None):
         hash = hashlib.sha256((str(checkin.fingerprint) + str(checkin.timestamp)).encode('utf-8')).hexdigest()
-        return jsonify({'url': f"https://goober.garden?access_token={hash}"}), 200
+        url = f"https://goober.garden/v1/bubba-gum-shimp?access_token={hash}" 
+        img = qrcode.make(url)
+        rgba_img = img.convert("RGBA")
+        return png_to_json(rgba_img)
     else:
         goober.go_on_adventure()
         return goober.to_json(), 200
@@ -122,5 +127,43 @@ def get_available_fingerprint():
 def get_bubba_gum_shimp():
     return render_template('index.html')
 
+def rgb888_to_rgb565(red8, green8, blue8):
+    # Convert 8-bit red to 5-bit red.
+    red5 = round(red8 / 255 * 31)
+    # Convert 8-bit green to 6-bit green.
+    green6 = round(green8 / 255 * 63)
+    # Convert 8-bit blue to 5-bit blue.
+    blue5 = round(blue8 / 255 * 31)
+
+    # Shift the red value to the left by 11 bits.
+    red5_shifted = red5 << 11
+    # Shift the green value to the left by 5 bits.
+    green6_shifted = green6 << 5
+
+    # Combine the red, green, and blue values.
+    rgb565 = red5_shifted | green6_shifted | blue5
+
+    return rgb565
+
+def png_to_json(img):
+    bw = (img.width + 7) // 8
+    bitmap = [0] * img.width * img.height * 2
+    mask = [0] * bw * img.height
+
+    for y in range(img.height):
+        for x in range(img.width):
+            rgb8888 = img.getpixel((x, y))
+            if rgb8888[3] > 0:
+                mask[y * bw + x // 8] |= 1 << (7 - (x % 8))
+            rgb565 = rgb888_to_rgb565(rgb8888[0], rgb8888[1], rgb8888[2])
+            bitmap[y * img.width * 2 + x * 2] = rgb565 & 0xFF
+            bitmap[y * img.width * 2 + x * 2 + 1] = rgb565 >> 8
+        #     print(f"{x},{y}: {rgb8888} => {rgb565} => {bitmap[y * img.width + x * 2]} | {bitmap[y * img.width + x * 2 + 1]}")
+        #     if x % 8 == 7:
+        #         print(format(mask[y * bw + x // 8], "#010b"))
+        # print(format(mask[y * bw + x // 8], "#010b"))
+    bitmap_bytes = bytes(bitmap)
+    mask_bytes = bytes(mask)
+    return jsonify({"bitmap": base64.b64encode(bitmap_bytes).decode("utf-8"), "mask": base64.b64encode(mask_bytes).decode("utf-8"), "width": img.width, "height": img.height})
 
 app.register_blueprint(version_blueprint, url_prefix='/v1')
