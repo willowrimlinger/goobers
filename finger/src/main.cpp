@@ -18,6 +18,7 @@
 
 #include <Adafruit_Fingerprint.h>
 #include <SoftwareSerial.h>
+#include <WiFi.h>
 
 #if (defined(__AVR__) || defined(ESP8266)) && !defined(__AVR_ATmega2560__)
 // For UNO and others without hardware serial, we must use software serial...
@@ -34,6 +35,8 @@ SoftwareSerial mySerial(4, 5);
 #endif
 
 #define BUTTON_PIN 21
+#define WIFI_SSID "goober"
+#define WIFI_PASS "yippee123"
 
 Adafruit_Fingerprint finger = Adafruit_Fingerprint(&mySerial);
 
@@ -41,6 +44,7 @@ uint8_t id;
 uint32_t counter;
 int lastState = HIGH; // the previous state from the input pin
 int currentState;     // the current reading from the input pin
+int status = WL_IDLE_STATUS;
 
 uint8_t getFingerprintEnroll() {
 
@@ -278,8 +282,26 @@ int getFingerprintIDez() {
 
 void setup()
 {
-  delay(10000);
+  delay(15000);
+
   Serial.begin(9600);
+  while ( status != WL_CONNECTED) {
+    Serial.printf("Connecting to WiFi network '%s'", WIFI_SSID);
+
+    status = WiFi.begin(WIFI_SSID, WIFI_PASS);
+
+    for (int i = 0; i < 10; i++) {
+      delay(1000);
+      Serial.printf(".");
+      status = WiFi.status();
+      if (status == WL_CONNECTED) {
+        Serial.printf("\n");
+        break;
+      }
+    }
+  }
+  IPAddress ip = WiFi.localIP();
+  Serial.printf("Connected! IP: %u.%u.%u.%u\n", ip[0], ip[1], ip[2], ip[3]);
   // while (!Serial);  // For Yun/Leo/Micro/Zero/...
   delay(1000);
   Serial.println("\n\nAdafruit finger detect test");
