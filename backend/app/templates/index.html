@@ -1,0 +1,122 @@
+<html>
+<head>
+<title>Sketchpad</title>
+
+<body>
+    <canvas id="canvas" width="600" height="600">
+    Your browser does not support the canvas element.
+    </canvas>
+    <form>
+        <input type="text">
+    </form>
+    <button id="clear">Clear canvas</button>
+    <button id="submit">Submit Goober</button>
+</body>
+
+<script type="text/javascript">
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+
+    // Mapping from the pointerId to the current finger position
+    const ongoingTouches = new Map();
+    function handleStart(event) {
+    event.preventDefault();
+
+    for (const changedTouch of event.changedTouches) {
+        const touch = {
+        pageX: changedTouch.pageX,
+        pageY: changedTouch.pageY,
+        color: colorForTouch(changedTouch),
+        };
+        ongoingTouches.set(changedTouch.identifier, touch);
+        ctx.beginPath();
+        ctx.arc(touch.pageX, touch.pageY, 4, 0, 2 * Math.PI, false);
+        ctx.fillStyle = touch.color;
+        ctx.fill();
+    }
+    }
+
+    canvas.addEventListener("touchstart", handleStart);
+    function colorForTouch(touch) {
+    const r = touch.identifier % 16;
+    const g = Math.floor(touch.identifier / 3) % 16;
+    const b = Math.floor(touch.identifier / 7) % 16;
+    // convert to hex digits
+    return `#${r.toString(16)}${g.toString(16)}${b.toString(16)}`;
+    }
+    function handleEnd(event) {
+    event.preventDefault();
+
+    for (const changedTouch of event.changedTouches) {
+        const touch = ongoingTouches.get(changedTouch.identifier);
+        if (!touch) {
+        console.error(`End: Could not find touch ${changedTouch.identifier}`);
+        continue;
+        }
+        ctx.lineWidth = 4;
+        ctx.fillStyle = touch.color;
+        ctx.beginPath();
+        ctx.moveTo(touch.pageX, touch.pageY);
+        ctx.lineTo(changedTouch.pageX, changedTouch.pageY);
+        ctx.fillRect(changedTouch.pageX - 4, changedTouch.pageY - 4, 8, 8);
+        ongoingTouches.delete(changedTouch.identifier);
+    }
+    }
+
+    canvas.addEventListener("touchend", handleEnd);
+    function handleCancel(event) {
+    event.preventDefault();
+
+    for (const changedTouch of event.changedTouches) {
+        if (!ongoingTouches.has(changedTouch.identifier)) {
+        console.error(`Cancel: Could not find touch ${changedTouch.identifier}`);
+        continue;
+        }
+        ongoingTouches.delete(changedTouch.identifier);
+    }
+    }
+
+    canvas.addEventListener("touchcancel", handleCancel);
+    function handleMove(event) {
+    event.preventDefault();
+
+    for (const changedTouch of event.changedTouches) {
+        const touch = ongoingTouches.get(changedTouch.identifier);
+
+        if (!touch) {
+        console.error(`Move: Could not find touch ${changedTouch.identifier}`);
+        continue;
+        }
+
+        ctx.beginPath();
+        ctx.moveTo(touch.pageX, touch.pageY);
+        ctx.lineTo(changedTouch.pageX, changedTouch.pageY);
+        ctx.lineWidth = 10;
+        ctx.strokeStyle = touch.color;
+        ctx.stroke();
+
+        const newTouch = {
+        pageX: changedTouch.pageX,
+        pageY: changedTouch.pageY,
+        color: touch.color,
+        };
+
+        ongoingTouches.set(changedTouch.identifier, newTouch);
+    }
+    }
+
+    canvas.addEventListener("touchmove", handleMove);
+    document.getElementById("clear").addEventListener("click", () => {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    });
+
+</script>
+
+<style>
+#canvas {
+  border: 1px solid black;
+  display: block;
+}
+</style>
+</head>
+</html>

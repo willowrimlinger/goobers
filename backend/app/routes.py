@@ -1,6 +1,6 @@
 from app import app, version_blueprint
 from app.models import Goober, Fingerprint, CheckIn, Event, GooberHistory
-from flask import request, jsonify  
+from flask import request, jsonify, render_template
 from app import db
 from datetime import datetime, timedelta
 import hashlib
@@ -117,5 +117,10 @@ def get_available_fingerprint():
     if not fingerprint:
         return jsonify({'error': 'No available fingerprints'}), 404
     return str(fingerprint), 200
+
+@version_blueprint.route('/bubba-gum-shimp', methods=['GET'])
+def get_bubba_gum_shimp():
+    return render_template('index.html')
+
 
 app.register_blueprint(version_blueprint, url_prefix='/v1')
