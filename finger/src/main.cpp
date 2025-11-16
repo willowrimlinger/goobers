@@ -1,4 +1,3 @@
-#include <Arduino.h>
 /***************************************************
   This is an example sketch for our optical Fingerprint sensor
 
@@ -15,10 +14,11 @@
   BSD license, all text above must be included in any redistribution
  ****************************************************/
 
-
+#include <Arduino.h>
 #include <Adafruit_Fingerprint.h>
 #include <SoftwareSerial.h>
 #include <WiFi.h>
+#include <HTTPClient.h>
 
 #if (defined(__AVR__) || defined(ESP8266)) && !defined(__AVR_ATmega2560__)
 // For UNO and others without hardware serial, we must use software serial...
@@ -38,6 +38,9 @@ SoftwareSerial mySerial(4, 5);
 #define WIFI_SSID "goober"
 #define WIFI_PASS "yippee123"
 
+String HOST_NAME   = "http://10.153.208.87:5000";
+String PATH_GET_NEXT_ENROLL_ID = "/v1/gimme-new-one";
+
 Adafruit_Fingerprint finger = Adafruit_Fingerprint(&mySerial);
 
 uint8_t id;
@@ -45,6 +48,8 @@ uint32_t counter;
 int lastState = HIGH; // the previous state from the input pin
 int currentState;     // the current reading from the input pin
 int status = WL_IDLE_STATUS;
+HTTPClient http;
+
 
 uint8_t getFingerprintEnroll() {
 
@@ -187,14 +192,26 @@ uint8_t getFingerprintEnroll() {
   return true;
 }
 
-uint8_t readnumber(void) {
-  uint8_t num = 0;
+uint8_t getNextAvailableID(void) {
+    http.begin(HOST_NAME + PATH_GET_NEXT_ENROLL_ID); //HTTP
+    int httpCode = http.GET();
+    // httpCode will be negative on error
+    if (httpCode > 0) {
+    // file found at server
+      if (httpCode == HTTP_CODE_OK) {
+        String payload = http.getString();
+        Serial.printf("Next available ID: %s\n", payload);
+        return payload.toInt();
+      } else {
+        // HTTP header has been send and Server response header has been handled
+        Serial.printf("[HTTP] GET... code: %d\n", httpCode);
+      }
+    } else {
+      Serial.printf("[HTTP] GET... failed, error: %s\n", http.errorToString(httpCode).c_str());
+    }
 
-  while (num == 0) {
-    while (! Serial.available());
-    num = Serial.parseInt();
-  }
-  return num;
+    http.end();
+    return 0;
 }
 
 uint8_t getFingerprintID() {
@@ -352,11 +369,7 @@ void loop()                     // run over and over again
 
   if(lastState == HIGH && currentState == LOW) {
     Serial.println("Enrolling...");
-    Serial.println("Please type in the ID # (from 1 to 127) you want to save this finger as...");
-    id = readnumber();
-    if (id == 0) {// ID #0 not allowed, try again!
-      return;
-    }
+    id = getNextAvailableID();
     Serial.print("Enrolling ID #");
     Serial.println(id);
 
