@@ -72,6 +72,14 @@ def get_latest_session():
         return png_to_json(rgba_img)
     else:
         goober.go_on_adventure()
+        json = goober.to_json()
+        img_64 = goober.image
+        if "data:image/png;base64," in img_64:
+            img_64 = img_64.split("data:image/png;base64,")[1]
+        image_data = base64.b64decode(img_64)
+        img = Image.open(image_data)
+        rgba_img = img.convert("RGBA")
+        json['image'] = png_to_json(rgba_img)
         return goober.to_json(), 200
 
 
@@ -165,16 +173,5 @@ def png_to_json(img):
     bitmap_bytes = bytes(bitmap)
     mask_bytes = bytes(mask)
     return jsonify({"bitmap": base64.b64encode(bitmap_bytes).decode("utf-8"), "mask": base64.b64encode(mask_bytes).decode("utf-8"), "width": img.width, "height": img.height})
-
-@version_blueprint.post('/bubba-gum-shimp')
-def get_bubba_gum_shimp():
-    data = request.get_json()
-    name: str = data.get('name')
-    imageb64: str = data.get('image')
-    access_token: str = data.get('access_token')
-
-    # from access token, get fingerprint sensor
-
-    goober = Goober(name=name, image=imageb64)
 
 app.register_blueprint(version_blueprint, url_prefix='/v1')
