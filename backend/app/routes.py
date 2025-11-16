@@ -19,6 +19,9 @@ def get_goobers():
 @DeprecationWarning
 @version_blueprint.route('/goobers/<string:fingerprint>', methods=['GET'])
 def get_goober_by_fingerprint(fingerprint: str):
+    fingerprint_obj = Fingerprint.get_by_fingerprint(fingerprint)
+    if not fingerprint_obj: 
+        return jsonify({'error': 'Fingerprint not register not found'}), 404
     goober = Goober.get_by_fingerprint(Fingerprint.get_by_fingerprint(fingerprint))
     if not goober:
         return jsonify({'error': 'Goober not found'}), 404
@@ -107,5 +110,12 @@ def create_event():
     db.session.commit()
 
     return jsonify({'message': 'Event created successfully', 'event': {'name': new_event.name, 'description': new_event.description}}), 201
+
+@version_blueprint.route('/gimme-new-one', methods=['GET'])
+def get_available_fingerprint():
+    fingerprint: str = Fingerprint.get_available_fingerprints()
+    if not fingerprint:
+        return jsonify({'error': 'No available fingerprints'}), 404
+    return str(fingerprint), 200
 
 app.register_blueprint(version_blueprint, url_prefix='/v1')

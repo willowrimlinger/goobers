@@ -16,6 +16,11 @@ class Fingerprint(db.Model):
     def get_by_fingerprint(cls, fingerprint: str):
         return db.session.scalar(sa.select(cls).where(cls.fingerprint == fingerprint))
     
+    @classmethod
+    def get_available_fingerprints(cls):
+        used_fingerprints = db.session.scalars(sa.select(cls.fingerprint)).all()
+        return random.choice([num for num in range(80) if str(num) not in used_fingerprints])
+    
     def __repr__(self):
         return f'<Fingerprint {self.fingerprint}>'
 
@@ -116,3 +121,4 @@ class GooberHistory(db.Model):
 
     def __repr__(self):
         return f'<GooberHistory {self.goober.name} - {self.event.name} at {self.timestamp}>'
+    
