@@ -1,3 +1,5 @@
+import sys
+
 from app import app, version_blueprint
 from app.models import Goober, Fingerprint, CheckIn, Event, GooberHistory
 from flask import request, jsonify, render_template
@@ -71,6 +73,8 @@ def get_latest_session():
         img = qrcode.make(url)
         img.save("qr.png")
         rgba_img = img.convert("RGBA")
+
+        rgba_img.thumbnail([sys.maxsize, 480], Image.Resampling.LANCZOS)
         return jsonify(png_to_json(rgba_img)), 201
     else:
         goober.go_on_adventure()
@@ -81,6 +85,7 @@ def get_latest_session():
         image_data = base64.b64decode(img_64)
         image_buffer = io.BytesIO(image_data)
         img = Image.open(image_buffer)
+        img.thumbnail([sys.maxsize, 360], Image.Resampling.LANCZOS)
         # rgba_img = image_data.convert("RGBA")
         new_json = png_to_json(img)
         print(new_json)
@@ -188,15 +193,21 @@ def post_bubba_gum_shimp():
     imageb64: str = data.get('image')
     access_token: str = data.get('access_token')
 
-    checkin = CheckIn.get_latest()
-    hash = hashlib.sha256((str(checkin.fingerprint) + str(checkin.timestamp)).encode('utf-8')).hexdigest()
+    checkins = CheckIn.get_within_timeframe(5)
+    checkin = None
+    for c in checkins:
+        if hashlib.sha256((str(c.fingerprint) + str(c.timestamp)).encode('utf-8')).hexdigest() == access_token:
+            checkin = c
+            break
 
-    if access_token != hash:
+    if not checkin:
         return jsonify({'error': 'Invalid access token'}), 403
     
     goober = Goober(name=name, image=imageb64, fingerprint_id=checkin.fingerprint.id)
     db.session.add(goober)
     db.session.delete(checkin)
+    new_checkin = CheckIn(fingerprint_id=checkin.fingerprint.id, timestamp=datetime.now())
+    db.session.add(new_checkin)
     db.session.commit()
 
     return 201

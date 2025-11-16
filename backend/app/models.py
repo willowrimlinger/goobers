@@ -51,8 +51,8 @@ class Goober(db.Model):
             'last_seen': goober_history[0].timestamp if goober_history else None,
             'events': [{'event': history.event.name, 'description': history.event.description} for history in goober_history],
             'stats': [  
-                {'stat_name': history.event.stat_name, 'stat_value': history.event.value_float} if history.event.type == 'float' else 
-                {'stat_name': history.event.stat_name, 'stat_value': history.event.value_string} 
+                {'type': 'float', 'stat_name': history.event.stat_name, 'stat_value': history.event.value_float} if history.event.type == 'float' else
+                {'type': 'str', 'stat_name': history.event.stat_name, 'stat_value': history.event.value_string}
                 for history in goober_history[0:5]]
         }
     
@@ -80,6 +80,11 @@ class CheckIn(db.Model):
     @classmethod
     def get_latest(cls):
         return db.session.scalars(sa.select(cls).order_by(CheckIn.timestamp.desc())).first()
+    
+    @classmethod
+    def get_within_timeframe(cls, minutes: int):
+        cutoff_time = datetime.now() - timedelta(minutes=minutes)
+        return db.session.scalars(sa.select(cls).where(cls.timestamp >= cutoff_time)).all()
 
     def __repr__(self):
         return f'<CheckIn {self.goober.name} at {self.timestamp}>'
