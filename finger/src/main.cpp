@@ -40,6 +40,7 @@ SoftwareSerial mySerial(4, 5);
 
 String HOST_NAME   = "http://10.153.208.87:5000";
 String PATH_GET_NEXT_ENROLL_ID = "/v1/gimme-new-one";
+String PATH_SEND_FINGERPRINT = "/v1/sessions";
 
 Adafruit_Fingerprint finger = Adafruit_Fingerprint(&mySerial);
 
@@ -214,7 +215,32 @@ uint8_t getNextAvailableID(void) {
     return 0;
 }
 
-uint8_t getFingerprintID() {
+uint8_t sendFingerprint(uint8_t finger) {
+  http.begin(HOST_NAME + PATH_SEND_FINGERPRINT);
+  String stringFinger = String(finger);
+  http.addHeader("Content-Type", "application/json");
+  int httpCode = http.POST("{\"fingerprint\": \"" + stringFinger + "\"}");
+  // httpCode will be negative on error
+  if (httpCode > 0) {
+  // file found at server
+    if (httpCode == HTTP_CODE_OK) {
+      String payload = http.getString();
+      Serial.println("{\"fingerprint\": \"" + payload + "\"}");
+    } else {
+      // HTTP header has been send and Server response header has been handled
+      String payload = http.getString();
+      Serial.println("{\"fingerprint\": \"" + payload + "\"}");
+      Serial.printf("[HTTP] GET... code: %d\n", httpCode);
+    }
+  } else {
+    Serial.printf("[HTTP] GET... failed, error: %s\n", http.errorToString(httpCode).c_str());
+  }
+
+  http.end();
+  return 0;
+}
+
+int getFingerprintID() {
   uint8_t p = finger.getImage();
   switch (p) {
     case FINGERPRINT_OK:
@@ -222,16 +248,16 @@ uint8_t getFingerprintID() {
       break;
     case FINGERPRINT_NOFINGER:
       Serial.println("No finger detected");
-      return p;
+      return -1;
     case FINGERPRINT_PACKETRECIEVEERR:
       Serial.println("Communication error");
-      return p;
+      return -1;
     case FINGERPRINT_IMAGEFAIL:
       Serial.println("Imaging error");
-      return p;
+      return -1;
     default:
       Serial.println("Unknown error");
-      return p;
+      return -1;
   }
 
   // OK success!
@@ -243,19 +269,19 @@ uint8_t getFingerprintID() {
       break;
     case FINGERPRINT_IMAGEMESS:
       Serial.println("Image too messy");
-      return p;
+      return -1;
     case FINGERPRINT_PACKETRECIEVEERR:
       Serial.println("Communication error");
-      return p;
+      return -1;
     case FINGERPRINT_FEATUREFAIL:
       Serial.println("Could not find fingerprint features");
-      return p;
+      return -1;
     case FINGERPRINT_INVALIDIMAGE:
       Serial.println("Could not find fingerprint features");
-      return p;
+      return -1;
     default:
       Serial.println("Unknown error");
-      return p;
+      return -1;
   }
 
   // OK converted!
@@ -264,13 +290,13 @@ uint8_t getFingerprintID() {
     Serial.println("Found a print match!");
   } else if (p == FINGERPRINT_PACKETRECIEVEERR) {
     Serial.println("Communication error");
-    return p;
+    return -1;
   } else if (p == FINGERPRINT_NOTFOUND) {
     Serial.println("Did not find a match");
-    return p;
+    return -1;
   } else {
     Serial.println("Unknown error");
-    return p;
+    return -1;
   }
 
   // found a match!
@@ -361,7 +387,10 @@ void loop()                     // run over and over again
 {
   if (counter == 0) {
     // read fingy sensor
-    uint8_t p = getFingerprintID();
+    int p = getFingerprintID();
+    if (p >= 0) {
+      sendFingerprint(p);
+    }
   }
 
   // read the state of the switch/button:
@@ -379,6 +408,7 @@ void loop()                     // run over and over again
   // save the last state
   lastState = currentState;
 
+  // only read from the fingerprint sensor every 50 loops
   counter++;
   if (counter > 50) {
     counter = 0;
