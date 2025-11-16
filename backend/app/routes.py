@@ -5,7 +5,11 @@ from app import db
 from datetime import datetime, timedelta
 import hashlib
 import json
+<<<<<<< HEAD
 from base64 import base64
+=======
+
+>>>>>>> b58baabd9e70def2753848caeede1c8daabe6d00
 
 @version_blueprint.route('/hello')
 def index():
@@ -122,6 +126,7 @@ def get_available_fingerprint():
 def get_bubba_gum_shimp():
     return render_template('index.html')
 
+<<<<<<< HEAD
 def rgb888_to_rgb565(red8, green8, blue8):
     # Convert 8-bit red to 5-bit red.
     red5 = round(red8 / 255 * 31)
@@ -163,5 +168,7 @@ def hello_world():  # put application's code here
         bitmap_bytes = bytes(bitmap)
         mask_bytes = bytes(mask)
     return jsonify({"bitmap": base64.b64encode(bitmap_bytes).decode("utf-8"), "mask": base64.b64encode(mask_bytes).decode("utf-8"), "width": img.width, "height": img.height})
+=======
+>>>>>>> b58baabd9e70def2753848caeede1c8daabe6d00
 
 app.register_blueprint(version_blueprint, url_prefix='/v1')
