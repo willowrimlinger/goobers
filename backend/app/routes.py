@@ -193,10 +193,14 @@ def post_bubba_gum_shimp():
     imageb64: str = data.get('image')
     access_token: str = data.get('access_token')
 
-    checkin = CheckIn.get_latest()
-    hash = hashlib.sha256((str(checkin.fingerprint) + str(checkin.timestamp)).encode('utf-8')).hexdigest()
+    checkins = CheckIn.get_within_timeframe(5)
+    checkin = None
+    for c in checkins:
+        if hashlib.sha256((str(c.fingerprint) + str(c.timestamp)).encode('utf-8')).hexdigest() == access_token:
+            checkin = c
+            break
 
-    if access_token != hash:
+    if not checkin:
         return jsonify({'error': 'Invalid access token'}), 403
     
     goober = Goober(name=name, image=imageb64, fingerprint_id=checkin.fingerprint.id)

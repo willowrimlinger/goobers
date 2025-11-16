@@ -80,6 +80,11 @@ class CheckIn(db.Model):
     @classmethod
     def get_latest(cls):
         return db.session.scalars(sa.select(cls).order_by(CheckIn.timestamp.desc())).first()
+    
+    @classmethod
+    def get_within_timeframe(cls, minutes: int):
+        cutoff_time = datetime.now() - timedelta(minutes=minutes)
+        return db.session.scalars(sa.select(cls).where(cls.timestamp >= cutoff_time)).all()
 
     def __repr__(self):
         return f'<CheckIn {self.goober.name} at {self.timestamp}>'
