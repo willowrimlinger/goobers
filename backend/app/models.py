@@ -53,7 +53,7 @@ class Goober(db.Model):
             'stats': [  
                 {'stat_name': history.event.stat_name, 'stat_value': history.event.value_float} if history.event.type == 'float' else 
                 {'stat_name': history.event.stat_name, 'stat_value': history.event.value_string} 
-                for history in goober_history]
+                for history in goober_history[0:5]]
         }
     
     def go_on_adventure(self):

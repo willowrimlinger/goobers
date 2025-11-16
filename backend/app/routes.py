@@ -8,6 +8,7 @@ import json
 import base64
 from PIL import Image
 import qrcode
+import io
 
 @version_blueprint.route('/hello')
 def index():
@@ -68,19 +69,25 @@ def get_latest_session():
         hash = hashlib.sha256((str(checkin.fingerprint) + str(checkin.timestamp)).encode('utf-8')).hexdigest()
         url = f"https://goober.garden/v1/bubba-gum-shimp?access_token={hash}" 
         img = qrcode.make(url)
+        img.save("qr.png")
         rgba_img = img.convert("RGBA")
-        return png_to_json(rgba_img)
+        return jsonify(png_to_json(rgba_img)), 201
     else:
         goober.go_on_adventure()
-        json = goober.to_json()
+        goober_json = goober.to_json()
         img_64 = goober.image
-        if "data:image/png;base64," in img_64:
-            img_64 = img_64.split("data:image/png;base64,")[1]
+        # if "data:image/png;base64," in img_64:
+        #     img_64 = img_64.split("data:image/png;base64,")[1]
         image_data = base64.b64decode(img_64)
-        img = Image.open(image_data)
-        rgba_img = img.convert("RGBA")
-        json['image'] = png_to_json(rgba_img)
-        return goober.to_json(), 200
+        image_buffer = io.BytesIO(image_data)
+        img = Image.open(image_buffer)
+        # rgba_img = image_data.convert("RGBA")
+        new_json = png_to_json(img)
+        print(new_json)
+        del goober_json['image']
+        new_json['goober'] = goober_json
+
+        return jsonify(new_json), 200
 
 
 @version_blueprint.route('/sessions', methods=['POST'])
@@ -172,12 +179,28 @@ def png_to_json(img):
         # print(format(mask[y * bw + x // 8], "#010b"))
     bitmap_bytes = bytes(bitmap)
     mask_bytes = bytes(mask)
-    return jsonify({"bitmap": base64.b64encode(bitmap_bytes).decode("utf-8"), "mask": base64.b64encode(mask_bytes).decode("utf-8"), "width": img.width, "height": img.height})
+    return {"bitmap": base64.b64encode(bitmap_bytes).decode("utf-8"), "mask": base64.b64encode(mask_bytes).decode("utf-8"), "width": img.width, "height": img.height}
 
 @version_blueprint.post('/bubba-gum-shimp')
-def get_bubba_gum_shimp():
+def post_bubba_gum_shimp():
     data = request.get_json()
     name: str = data.get('name')
     imageb64: str = data.get('image')
+    access_token: str = data.get('access_token')
+
+    checkin = CheckIn.get_latest()
+    hash = hashlib.sha256((str(checkin.fingerprint) + str(checkin.timestamp)).encode('utf-8')).hexdigest()
+
+    if access_token != hash:
+        return jsonify({'error': 'Invalid access token'}), 403
+    
+    goober = Goober(name=name, image=imageb64, fingerprint_id=checkin.fingerprint.id)
+    db.session.add(goober)
+    db.session.delete(checkin)
+    db.session.commit()
+
+    return 201
+
+
 
 app.register_blueprint(version_blueprint, url_prefix='/v1')

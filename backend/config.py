@@ -5,4 +5,4 @@ basedir = os.path.abspath(os.path.dirname(__file__))
 class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev'
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or \
-        'postgresql://user:password@localhost:2020/goobers_db'
+        'postgresql://user:password@localhost:5432/goobers_db'
