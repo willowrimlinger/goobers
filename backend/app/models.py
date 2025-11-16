@@ -47,12 +47,13 @@ class Goober(db.Model):
         return {
             'name': self.name,
             'fingerprint': self.fingerprint.fingerprint,
+            'image': self.image,
             'last_seen': goober_history[0].timestamp if goober_history else None,
             'events': [{'event': history.event.name, 'description': history.event.description} for history in goober_history],
             'stats': [  
                 {'stat_name': history.event.stat_name, 'stat_value': history.event.value_float} if history.event.type == 'float' else 
                 {'stat_name': history.event.stat_name, 'stat_value': history.event.value_string} 
-                for history in goober_history]
+                for history in goober_history[0:5]]
         }
     
     def go_on_adventure(self):

@@ -1,6 +1,12 @@
 version: '3.8'
 
 services:
+  sleep:
+    image: python:3.12-alpine
+    command: sh -c "sleep 30 && echo 'Done sleeping'"
+    depends_on:
+      - db
+
   web:
     build: .
     ports:
@@ -10,17 +16,21 @@ services:
       DATABASE_URL: postgresql://user:password@db:5432/goobers_db
     depends_on:
       - db
+      - sleep
+
 
   db:
     image: postgres:16-alpine # Use an Alpine-based PostgreSQL image
+    ports:
+      - "6767:5432"
     environment:
       POSTGRES_DB: goobers_db
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
-    volumes:
-      - db_data:/var/lib/postgresql/data
+    # volumes:
+    #   - db_data:/var/lib/postgresql/data
 
-volumes:
-  db_data:
+# volumes:
+#   db_data:
   # - ./migrations:/app/migrations
   # - db_data: /var/lib/postgresql/data

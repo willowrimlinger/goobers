@@ -17,10 +17,15 @@ RUN apk add --no-cache postgresql-dev gcc python3-dev musl-dev \
 # COPY wsgi.py .
 COPY . .
 
+
+
 # Expose the port Flask will run on
 EXPOSE 5000
 
+# RUN flask db upgrade
+
 # Command to run the Flask application (e.g., using Gunicorn)
-CMD ["flask", "db", "upgrade"]
+# CMD ["flask", "db", "upgrade"]
+CMD sh -c "flask db upgrade && gunicorn --bind 0.0.0.0:5000 wsgi:app --log-level debug"
 CMD ["gunicorn", "--bind", "0.0.0.0:5000", "wsgi:app"]
 # CMD ["sh", "-c", "PYTHONPATH=/app gunicorn --bind 0.0.0.0:5000 wsgi:app"]
