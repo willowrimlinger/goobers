@@ -4,4 +4,4 @@
 .vscode/launch.json
 .vscode/ipch
 */.venv/
-*.py[o,c,d]
+*.py[ocd]
