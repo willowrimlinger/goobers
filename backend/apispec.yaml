@@ -49,7 +49,7 @@ paths:
           description: Goober not found
   /sessions:
     get:
-      summary: get url if there was a recent fingerprint check in
+      summary: get url if there was a recent fingerprint check in, a new fingerprint will return the qr code for the goober, and an existing fingerprint will return the id of the connected goober.
       responses:
         '200':
           description: returns a url with an auth token for the qr code to use
@@ -59,6 +59,8 @@ paths:
                 type: object
                 properties:
                   url:
+                    type: string
+                  id:
                     type: string
     post:
       summary: When a fingerprint is sent, store the id and the check in time.
