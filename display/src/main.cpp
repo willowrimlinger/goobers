@@ -7,9 +7,17 @@
 #include <Adafruit_CST8XX.h>
 #include <WiFi.h>
 #include <Fonts/FreeMono9pt7b.h>
+#include <WiFiClient.h>
+#include <HTTPClient.h>
+#include <ArduinoJson.h>
+#include <base64.hpp>
+#include <StreamUtils.h>
 
 #include "config.h"
 #include "display.h"
+
+WiFiClient client;
+HTTPClient http;
 
 Arduino_XCA9554SWSPI *expander = new Arduino_XCA9554SWSPI(
     PCA_TFT_RESET, PCA_TFT_CS, PCA_TFT_SCK, PCA_TFT_MOSI,
@@ -130,28 +138,28 @@ void setup(void)
 
   gfx->fillScreen(BLACK);
   gfx->setFont(&FreeMono9pt7b);
-
-  expander->pinMode(PCA_TFT_BACKLIGHT, OUTPUT);
-  expander->digitalWrite(PCA_TFT_BACKLIGHT, HIGH);
-
-  // Set WiFi to station mode and disconnect from an AP if it was previously connected
-  WiFi.mode(WIFI_STA);
-  WiFi.disconnect();
-  delay(100);
-
+  gfx->setTextColor(WHITE);
+  gfx->setCursor(0, 20);
   colorWheel = (uint16_t *) ps_malloc(gfx->width() * gfx->height() * sizeof(uint16_t));
   if (colorWheel) {
     generateColorWheel(colorWheel);
     gfx->draw16bitRGBBitmap(0, 0, colorWheel, gfx->width(), gfx->height());
   }
+  DISPLAY_PRINTF("Initializing Goober System...\n");
+
+  expander->pinMode(PCA_TFT_BACKLIGHT, OUTPUT);
+  expander->digitalWrite(PCA_TFT_BACKLIGHT, HIGH);
+
+  // Set WiFi to station mode and disconnect from an AP if it was previously connected
+  delay(15000);
+  WiFi.mode(WIFI_STA);
+  WiFi.disconnect();
 
   int status = WL_IDLE_STATUS;
 
   // attempt to connect to Wifi network:
 
   while ( status != WL_CONNECTED) {
-    gfx->setTextColor(WHITE);
-    gfx->setCursor(0, 20);
     DISPLAY_PRINTF("Connecting to WiFi network '%s'", WIFI_SSID);
 
     status = WiFi.begin(WIFI_SSID, WIFI_PASS);
@@ -160,6 +168,7 @@ void setup(void)
       delay(1000);
       DISPLAY_PRINTF(".");
       status = WiFi.status();
+      Serial.println(status);
       if (status == WL_CONNECTED) {
         DISPLAY_PRINTF("\n");
         break;
@@ -170,6 +179,44 @@ void setup(void)
   }
   IPAddress ip = WiFi.localIP();
   DISPLAY_PRINTF("Connected! IP: %u.%u.%u.%u\n", ip[0], ip[1], ip[2], ip[3]);
+
+  const char* keys[] = {"Transfer-Encoding"};
+  http.collectHeaders(keys, 1);
+  http.begin(client, "http://10.153.208.250:5000/");
+  DISPLAY_PRINTF("HTTP Sent... ");
+  http.GET();
+  DISPLAY_PRINTF("Response Received!\n");
+
+  // Get the raw and the decoded stream
+  Stream& rawStream = http.getStream();
+  ChunkDecodingStream decodedStream(http.getStream());
+
+  // Choose the right stream depending on the Transfer-Encoding header
+  Stream& response =
+      http.header("Transfer-Encoding") == "chunked" ? decodedStream : rawStream;
+
+  // Parse response
+  JsonDocument doc;
+  deserializeJson(doc, response);
+
+  DISPLAY_PRINTF("JSON Deserialized\n");
+  uint32_t width = doc["width"].as<uint32_t>();
+  uint32_t height = doc["height"].as<uint32_t>();
+  String bitmapB64Str = doc["bitmap"].as<String>();
+  DISPLAY_PRINTF("B64 Length: %d\n", bitmapB64Str.length());
+  const char *bitmapB64 = bitmapB64Str.c_str();
+  uint16_t *bitmap = (uint16_t *) ps_malloc(sizeof(uint16_t) * width * height);
+  DISPLAY_PRINTF("Malloc'd... ");
+  unsigned int nBytes = decode_base64((const unsigned char *)bitmapB64, (unsigned char *)bitmap);
+  DISPLAY_PRINTF("Bitmap Parsed, %d bytes\n", nBytes);
+  JsonArray maskJson = doc["mask"].as<JsonArray>();
+  uint8_t *mask = (uint8_t *) ps_malloc(sizeof(uint8_t) * maskJson.size());
+  DISPLAY_PRINTF("Malloc'd... ");
+  for (int i = 0; i < maskJson.size(); i++) {
+    mask[i] = maskJson[i].as<uint8_t>();
+  }
+  DISPLAY_PRINTF("Mask Parsed\n");
+  drawRGBBitmap(gfx, 0, 0, bitmap, mask, width, height);
 
   if (!focal_ctp.begin(0, &Wire, I2C_TOUCH_ADDR)) {
     // Try the CST826 Touch Screen
