@@ -8,16 +8,48 @@
 #include <WiFi.h>
 #include <Fonts/FreeMono9pt7b.h>
 #include <WiFiClient.h>
-#include <HTTPClient.h>
+#include <ArduinoHttpClient.h>
 #include <ArduinoJson.h>
 #include <base64.hpp>
 #include <StreamUtils.h>
 
+#include "cJSON.h"
 #include "config.h"
 #include "display.h"
 
+cJSON_Hooks hooks = {
+  .malloc_fn = ps_malloc,
+  .free_fn = free
+};
+
+void printMem() {
+  Serial.printf("Total heap: %d\n", ESP.getHeapSize());
+  Serial.printf("Free heap: %d\n", ESP.getFreeHeap());
+  Serial.printf("Total PSRAM: %d\n", ESP.getPsramSize());
+  Serial.printf("Free PSRAM: %d\n", ESP.getFreePsram());
+}
+
+
+
+struct SpiRamAllocator {
+  void* allocate(size_t size) {
+    return ps_malloc(size);
+    printMem();
+  }
+
+  void deallocate(void* pointer) {
+    free(pointer);
+  }
+
+  void* reallocate(void* ptr, size_t new_size) {
+    return ps_realloc(ptr, new_size);
+  }
+};
+
+using SpiRamJsonDocument = BasicJsonDocument<SpiRamAllocator>;
+
 WiFiClient client;
-HTTPClient http;
+HttpClient http(client, "10.153.208.250", 5000);
 
 Arduino_XCA9554SWSPI *expander = new Arduino_XCA9554SWSPI(
     PCA_TFT_RESET, PCA_TFT_CS, PCA_TFT_SCK, PCA_TFT_MOSI,
@@ -116,7 +148,6 @@ void generateColorWheel(uint16_t *colorWheel) {
 
 char buf[100];
 
-
 void setup(void)
 {
   Serial.begin(115200);
@@ -140,11 +171,11 @@ void setup(void)
   gfx->setFont(&FreeMono9pt7b);
   gfx->setTextColor(WHITE);
   gfx->setCursor(0, 20);
-  colorWheel = (uint16_t *) ps_malloc(gfx->width() * gfx->height() * sizeof(uint16_t));
-  if (colorWheel) {
-    generateColorWheel(colorWheel);
-    gfx->draw16bitRGBBitmap(0, 0, colorWheel, gfx->width(), gfx->height());
-  }
+  // colorWheel = (uint16_t *) ps_malloc(gfx->width() * gfx->height() * sizeof(uint16_t));
+  // if (colorWheel) {
+  //   generateColorWheel(colorWheel);
+  //   gfx->draw16bitRGBBitmap(0, 0, colorWheel, gfx->width(), gfx->height());
+  // }
   DISPLAY_PRINTF("Initializing Goober System...\n");
 
   expander->pinMode(PCA_TFT_BACKLIGHT, OUTPUT);
@@ -154,6 +185,8 @@ void setup(void)
   delay(15000);
   WiFi.mode(WIFI_STA);
   WiFi.disconnect();
+
+  printMem();
 
   int status = WL_IDLE_STATUS;
 
@@ -180,42 +213,61 @@ void setup(void)
   IPAddress ip = WiFi.localIP();
   DISPLAY_PRINTF("Connected! IP: %u.%u.%u.%u\n", ip[0], ip[1], ip[2], ip[3]);
 
-  const char* keys[] = {"Transfer-Encoding"};
-  http.collectHeaders(keys, 1);
-  http.begin(client, "http://10.153.208.250:5000/");
+
   DISPLAY_PRINTF("HTTP Sent... ");
-  http.GET();
-  DISPLAY_PRINTF("Response Received!\n");
+  http.get("/");
+  int statusCode = http.responseStatusCode();
+  long contentLength = http.contentLength();
+  DISPLAY_PRINTF("Response Received: %d, length %d\n", statusCode, contentLength);
+
+  char *response = (char *) ps_malloc(sizeof(char) * contentLength);
+  printMem();
 
   // Get the raw and the decoded stream
-  Stream& rawStream = http.getStream();
-  ChunkDecodingStream decodedStream(http.getStream());
-
-  // Choose the right stream depending on the Transfer-Encoding header
-  Stream& response =
-      http.header("Transfer-Encoding") == "chunked" ? decodedStream : rawStream;
+  DISPLAY_PRINTF("Skipping Headers: %d\n", http.skipResponseHeaders());
+  int remainingLength = contentLength;
+  int i = 0;
+  while(!http.endOfBodyReached()) {
+    if (http.available()) {
+      response[i] = http.read();
+      i++;
+      remainingLength--;
+    }
+  }
+  DISPLAY_PRINTF("Response Gathered! - Remaining: %d\n", remainingLength);
+  Serial.println(response);
 
   // Parse response
-  JsonDocument doc;
-  deserializeJson(doc, response);
-
-  DISPLAY_PRINTF("JSON Deserialized\n");
-  uint32_t width = doc["width"].as<uint32_t>();
-  uint32_t height = doc["height"].as<uint32_t>();
-  String bitmapB64Str = doc["bitmap"].as<String>();
-  DISPLAY_PRINTF("B64 Length: %d\n", bitmapB64Str.length());
-  const char *bitmapB64 = bitmapB64Str.c_str();
-  uint16_t *bitmap = (uint16_t *) ps_malloc(sizeof(uint16_t) * width * height);
-  DISPLAY_PRINTF("Malloc'd... ");
-  unsigned int nBytes = decode_base64((const unsigned char *)bitmapB64, (unsigned char *)bitmap);
-  DISPLAY_PRINTF("Bitmap Parsed, %d bytes\n", nBytes);
-  JsonArray maskJson = doc["mask"].as<JsonArray>();
-  uint8_t *mask = (uint8_t *) ps_malloc(sizeof(uint8_t) * maskJson.size());
-  DISPLAY_PRINTF("Malloc'd... ");
-  for (int i = 0; i < maskJson.size(); i++) {
-    mask[i] = maskJson[i].as<uint8_t>();
+  cJSON *json = cJSON_Parse(response);
+  printMem();
+  if(json == NULL) {
+    DISPLAY_PRINTF("JSON Decode Failed\n");
+    return;
   }
-  DISPLAY_PRINTF("Mask Parsed\n");
+  cJSON *key = json->child;
+  while (key) {
+    DISPLAY_PRINTF("%s ", key->string);
+    key = key->next;
+  }
+  DISPLAY_PRINTF("\n");
+
+
+  DISPLAY_PRINTF("JSON Deserialized, %d\n", http.endOfBodyReached());
+  uint32_t width = cJSON_GetObjectItem(json, "width")->valueint;
+  uint32_t height = cJSON_GetObjectItem(json, "height")->valueint;
+  char *bitmapB64Str = cJSON_GetObjectItem(json, "bitmap")->valuestring;
+  uint16_t *bitmap = (uint16_t *) ps_malloc(sizeof(uint16_t) * width * height);
+  printMem();
+  DISPLAY_PRINTF("Malloc'd... ");
+  unsigned int nBytes = decode_base64((const unsigned char *)bitmapB64Str, (unsigned char *)bitmap);
+  DISPLAY_PRINTF("Bitmap Parsed, %d bytes\n", nBytes);
+  char *maskB64Str = cJSON_GetObjectItem(json, "mask")->valuestring;
+  int maskLength = strlen(maskB64Str);
+  uint8_t *mask = (uint8_t *) ps_malloc(maskLength);
+  printMem();
+  DISPLAY_PRINTF("Malloc'd... ");
+  nBytes = decode_base64((const unsigned char *)maskB64Str, (unsigned char *)mask);
+  DISPLAY_PRINTF("Mask Parsed, %d bytes\n", nBytes);
   drawRGBBitmap(gfx, 0, 0, bitmap, mask, width, height);
 
   if (!focal_ctp.begin(0, &Wire, I2C_TOUCH_ADDR)) {

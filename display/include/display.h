@@ -2,7 +2,10 @@
 #include <Arduino_GFX_Library.h>
 
 #define DISPLAY_PRINTF(format, args...) sprintf(buf, format, ##args); \
-gfx->print(buf);
+gfx->print(buf); \
+if (gfx->getCursorY() > 460) { \
+    gfx->setCursor(0, 20); \
+}
 
 
 
