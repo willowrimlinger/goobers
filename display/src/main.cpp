@@ -220,6 +220,7 @@ void setup(void)
 }
 
 int lastStatusCode = -1;
+char lastGooberName[50] = "";
 void loop()
 {
   DISPLAY_DBGF("HTTP Sent... ");
@@ -298,15 +299,28 @@ void loop()
       gfx->fillScreen(WHITE);
     }
     gfx->setCursor(0, 20);
+    gfx->setTextSize(2);
     if (statusCode == 200) {
       cJSON *goober = cJSON_GetObjectItem(json, "goober");
-      DISPLAY_PRINTF("Name: %s\n", cJSON_GetObjectItem(goober, "name")->valuestring);
+      char *gooberName = cJSON_GetObjectItem(goober, "name")->valuestring;
+      if(strcmp(gooberName, lastGooberName) != 0) {
+        gfx->fillScreen(WHITE);
+      }
+      DISPLAY_PRINTF("Name: %s\n", gooberName);
       cJSON *stat = NULL;
       cJSON_ArrayForEach(stat, cJSON_GetObjectItem(goober, "stats")) {
-        DISPLAY_PRINTF("%s: %.2f\n", cJSON_GetObjectItem(stat, "stat_name")->valuestring, cJSON_GetObjectItem(stat, "stat_value")->valuedouble);
+        if (strcmp(cJSON_GetObjectItem(stat, "type")->valuestring, "float") == 0) {
+          DISPLAY_PRINTF("%s: %.2f\n", cJSON_GetObjectItem(stat, "stat_name")->valuestring, cJSON_GetObjectItem(stat, "stat_value")->valuedouble);
+        } else {
+          DISPLAY_PRINTF("%s: %.2f\n", cJSON_GetObjectItem(stat, "stat_name")->valuestring, cJSON_GetObjectItem(stat, "stat_value")->valuestring);
+        }
       }
+      drawRGBBitmap(gfx, 140, 140, bitmap, mask, width, height);
+      strcpy(lastGooberName, gooberName);
+    } else {
+      drawRGBBitmap(gfx, 0, 0, bitmap, mask, width, height);
     }
-    drawRGBBitmap(gfx, 0, 0, bitmap, mask, width, height);
+
     Serial.println("free bitmap");
     free(bitmap);
     Serial.println("free mask");

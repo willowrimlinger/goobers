@@ -37,7 +37,7 @@ SoftwareSerial mySerial(4, 5);
 #define WIFI_SSID "goober"
 #define WIFI_PASS "yippee123"
 
-String HOST_NAME   = "http://10.153.208.87:5000";
+String HOST_NAME   = "http://goober.garden";
 String PATH_GET_NEXT_ENROLL_ID = "/v1/gimme-new-one";
 String PATH_SEND_FINGERPRINT = "/v1/sessions";
 
